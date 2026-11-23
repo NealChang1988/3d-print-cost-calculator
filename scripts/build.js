@@ -91,7 +91,7 @@ function workedSection() {
     <h3>Why are these prices so exact?</h3>
     <p>They are practice numbers so you can check every line. They are not a quote and not a shop price.</p>
     <h3>Does resin use different math?</h3>
-    <p>No. Example D only swaps grams for millilitres. Material, electricity, markup, and the suggested price use the same steps, and that example ends at $2.31.</p>
+    <p>No. Example D only swaps grams for milliliters. Material, electricity, markup, and the suggested price use the same steps, and that example ends at $2.31.</p>
     <h3>Are my numbers sent anywhere?</h3>
     <p>${esc(FAQ_NUMBERS)}</p>
   </section>

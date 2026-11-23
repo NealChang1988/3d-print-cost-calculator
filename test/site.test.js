@@ -185,6 +185,8 @@ test("the synonym page has its own examples and both pages mention visit counts"
     assert.ok(other.includes(`Load example ${id}`), id);
   }
   assert.ok(other.includes("Example D. Resin"));
+  assert.match(other, /milliliters/);
+  assert.equal(/millilitres|millilitre|litres|litre/i.test(home + other), false);
   assert.ok(home.includes(FAQ_NUMBERS));
   assert.ok(other.includes(FAQ_NUMBERS));
   assert.equal(home.includes("Nothing is uploaded"), false);

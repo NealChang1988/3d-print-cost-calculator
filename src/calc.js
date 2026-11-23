@@ -106,15 +106,6 @@ export function parseLooseNumber(raw) {
 
 const UNIT_WORD = /(kg|ml|g|l)$/i;
 
-export function formatQty(n) {
-  if (!Number.isFinite(n)) return "";
-  const rounded = Math.round(n * 1000) / 1000;
-  const negative = rounded < 0;
-  const [whole, frac] = Math.abs(rounded).toFixed(3).replace(/\.?0+$/, "").split(".");
-  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return `${negative ? "-" : ""}${frac ? `${grouped}.${frac}` : grouped}`;
-}
-
 /**
  * Weight or volume. A typed unit wins over the dropdown.
  * kind is "weight" (g, kg) or "volume" (ml, L).
@@ -143,15 +134,14 @@ export function parseQuantity(raw, kind) {
   return { ok: true, value, unit };
 }
 
-export function quantityNote(raw, kind, dropdown) {
+export function quantityNote(raw, kind) {
   const parsed = parseQuantity(raw, kind);
   if (!parsed.ok) {
     return parsed.reason === "unit" ? { error: parsed.error, note: "" } : { error: "", note: "" };
   }
   if (!parsed.unit) return { error: "", note: "" };
-  const base = parsed.unit === "kg" || parsed.unit === "L" ? parsed.value * 1000 : parsed.value;
-  const shown = dropdown === "kg" || dropdown === "L" ? base / 1000 : base;
-  return { error: "", note: `Read as ${formatQty(shown)} ${dropdown}` };
+  const amount = String(raw).trim().replace(/\s*(kg|ml|g|l)\s*$/i, "").trim();
+  return { error: "", note: `Read as ${amount} ${parsed.unit}` };
 }
 
 const CURRENCY_MARKERS = [
@@ -181,6 +171,8 @@ const TYPED_SYMBOL = {
   AUD: "A$",
 };
 
+const TOKEN_PATTERNS = [/NT\$/i, /NTD/i, /TWD/i, /CA\$/i, /CAD/i, /AU\$/i, /AUD/i, /A\$/i, /US\$/i, /USD/i, /€/, /EUR/i, /£/, /GBP/i, /\$/];
+
 export function detectCurrency(raw) {
   if (raw == null) return null;
   const s = String(raw).toLowerCase().replace(/\s+/g, "");
@@ -189,6 +181,37 @@ export function detectCurrency(raw) {
     if (s.includes(marker)) return code;
   }
   return null;
+}
+
+/** The currency symbol or code as the user typed it, preferring the longest match. */
+export function typedCurrencyToken(raw) {
+  if (raw == null) return null;
+  const s = String(raw);
+  let best = null;
+  for (const pattern of TOKEN_PATTERNS) {
+    const match = pattern.exec(s);
+    if (!match) continue;
+    const token = match[0];
+    if (!best || match.index < best.index || (match.index === best.index && token.length > best.token.length)) {
+      best = { token, index: match.index };
+    }
+  }
+  return best ? best.token : null;
+}
+
+function tokensIn(raws) {
+  const tokens = [];
+  for (const raw of raws) {
+    const token = typedCurrencyToken(raw);
+    if (token && !tokens.includes(token)) tokens.push(token);
+  }
+  return tokens;
+}
+
+function listTokens(tokens) {
+  if (tokens.length === 1) return tokens[0];
+  if (tokens.length === 2) return `${tokens[0]} and ${tokens[1]}`;
+  return `${tokens.slice(0, -1).join(", ")}, and ${tokens[tokens.length - 1]}`;
 }
 
 export function currencyChoice(current, raws) {
@@ -206,22 +229,31 @@ export function currencyChoice(current, raws) {
     };
   }
   const detected = unique[0];
+  const token = tokensIn(raws).find((item) => detectCurrency(item) === detected) || TYPED_SYMBOL[detected];
   if (detected === current) return { currency: current, note: "" };
   if (current === "USD") {
     return {
       currency: detected,
-      note: `Currency switched to ${detected} because you typed ${TYPED_SYMBOL[detected]}.`,
+      note: `Currency switched to ${detected} because you typed ${token}.`,
     };
   }
   return {
     currency: current,
-    note: `Currency stays ${current}. You typed ${TYPED_SYMBOL[detected]}, and amounts are not converted.`,
+    note: `Currency stays ${current}. You typed ${token}, and amounts are not converted.`,
   };
 }
 
-/** Keep an auto-switch note until the symbol is gone or the user changes Currency. */
-export function retainCurrencyNote({ current, raws, sticky, fromSelector }) {
-  const remembered = fromSelector ? null : sticky;
+/** Keep an auto-switch note until the symbol is gone. A manual selector choice is never overridden. */
+export function retainCurrencyNote({ current, raws, sticky, fromSelector, locked }) {
+  const userLocked = Boolean(locked || fromSelector);
+  if (userLocked) {
+    const conflicting = tokensIn(raws).filter((token) => detectCurrency(token) !== current);
+    const note = conflicting.length
+      ? `You picked ${current}. Your prices still show ${listTokens(conflicting)}.`
+      : "";
+    return { currency: current, note, sticky: null, locked: true };
+  }
+  const remembered = sticky;
   const decision = currencyChoice(current, raws);
   let nextSticky = remembered;
   if (decision.note.startsWith("Currency switched to ")) {
@@ -233,7 +265,7 @@ export function retainCurrencyNote({ current, raws, sticky, fromSelector }) {
     if (symbolStillThere && decision.currency === nextSticky.currency) note = nextSticky.note;
     else nextSticky = null;
   }
-  return { currency: decision.currency, note, sticky: nextSticky };
+  return { currency: decision.currency, note, sticky: nextSticky, locked: false };
 }
 
 function formatHM(hours) {

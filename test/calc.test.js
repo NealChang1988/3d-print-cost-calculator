@@ -242,13 +242,15 @@ test("typed weight units convert, and a mismatched unit does not calculate", () 
   const ignored = calculate(exampleA({ packageAmount: "1.2", packageUnit: "g" }));
   assert.equal(formatMoney(grams.lines[0].cents, "USD"), "$1.67");
   assert.notEqual(grams.lines[0].cents, ignored.lines[0].cents);
-  assert.equal(quantityNote("1.2 kg", "weight", "g").note, "Read as 1,200 g");
+  assert.equal(quantityNote("1.2 kg", "weight", "g").note, "Read as 1.2 kg");
+  assert.equal(quantityNote("87.4 g", "weight", "kg").note, "Read as 87.4 g");
+  assert.equal(quantityNote("38.5 ml", "volume", "L").note, "Read as 38.5 ml");
 
   const spool = calculate(exampleA({ packageAmount: "1000g", packageUnit: "kg" }));
   assert.equal(spool.ok, true, spool.errors && spool.errors.join("; "));
   assert.equal(spool.errors.some((error) => error.includes("20 kg")), false);
   assert.equal(formatMoney(spool.lines[0].cents, "USD"), "$2.01");
-  assert.equal(quantityNote("1000g", "weight", "kg").note, "Read as 1 kg");
+  assert.equal(quantityNote("1000g", "weight", "kg").note, "Read as 1000 g");
 
   const mismatch = calculate(exampleA({ usageAmount: "12 ml" }));
   assert.equal(mismatch.ok, false);
@@ -276,6 +278,13 @@ test("currency symbols switch USD and do not confuse CA$ or A$ with $", () => {
     currency: "TWD",
     note: "Currency switched to TWD because you typed NT$.",
   });
+  assert.equal(
+    currencyChoice("USD", ["590 TWD"]).note,
+    "Currency switched to TWD because you typed TWD.",
+  );
+  assert.match(currencyChoice("USD", ["€12"]).note, /because you typed €/);
+  assert.match(currencyChoice("USD", ["12 EUR"]).note, /because you typed EUR/);
+  assert.match(currencyChoice("USD", ["CA$8"]).note, /because you typed CA\$/);
   assert.equal(currencyChoice("USD", ["$22.99"]).note, "");
   const stay = currencyChoice("EUR", ["NT$590"]);
   assert.equal(stay.currency, "EUR");
@@ -324,8 +333,35 @@ test("an auto-switch note stays until the symbol is gone or Currency is changed"
     fromSelector: true,
   });
   assert.equal(changed.currency, "EUR");
-  assert.match(changed.note, /Currency stays EUR/);
-  assert.equal(changed.sticky, null);
+  assert.equal(changed.note, "You picked EUR. Your prices still show NT$.");
+  assert.equal(changed.locked, true);
+  const backToUsd = retainCurrencyNote({
+    current: "USD",
+    raws: ["NT$590"],
+    sticky: first.sticky,
+    fromSelector: true,
+    locked: false,
+  });
+  assert.equal(backToUsd.currency, "USD");
+  assert.equal(backToUsd.note, "You picked USD. Your prices still show NT$.");
+  const stillLocked = retainCurrencyNote({
+    current: "USD",
+    raws: ["NT$590"],
+    sticky: backToUsd.sticky,
+    fromSelector: false,
+    locked: backToUsd.locked,
+  });
+  assert.equal(stillLocked.currency, "USD");
+  assert.equal(stillLocked.note, backToUsd.note);
+  const typedCode = retainCurrencyNote({
+    current: "USD",
+    raws: ["590 TWD"],
+    sticky: null,
+    fromSelector: false,
+    locked: true,
+  });
+  assert.equal(typedCode.currency, "USD");
+  assert.equal(typedCode.note, "You picked USD. Your prices still show TWD.");
 });
 
 test("new print time formats round seconds and keep the old forms", () => {

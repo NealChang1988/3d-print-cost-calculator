@@ -15,6 +15,7 @@ let currentMode = "filament";
 let latest = null;
 let syncing = false;
 let currencySticky = null;
+let currencyLocked = false;
 
 function load(key) {
   try {
@@ -207,8 +208,10 @@ function syncCurrency(fromSelector) {
     ],
     sticky: currencySticky,
     fromSelector,
+    locked: currencyLocked,
   });
   currencySticky = decision.sticky;
+  currencyLocked = decision.locked;
   if (decision.currency !== $("currency").value) $("currency").value = decision.currency;
   const note = $("currency-note");
   note.textContent = decision.note;
@@ -344,6 +347,7 @@ async function copyText(text) {
 
 function clearJob() {
   currencySticky = null;
+  currencyLocked = false;
   for (const key of Object.values(STORE)) save(key, "");
   $("mode-filament").checked = true;
   currentMode = "filament";

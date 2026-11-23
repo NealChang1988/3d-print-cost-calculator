@@ -660,6 +660,20 @@ test("init syncs Print time typed before the script loads", { timeout: 60000 }, 
     assert.match(kept.afterEdit, /Currency switched to TWD because you typed NT\$/);
     assert.equal(kept.hidden, false);
     assert.equal(kept.currency, "TWD");
+    const picked = await evaluate(page.client, `(() => {
+      const currency = document.getElementById("currency");
+      currency.value = "USD";
+      currency.dispatchEvent(new Event("change", { bubbles: true }));
+      const power = document.getElementById("power");
+      power.value = "90";
+      power.dispatchEvent(new Event("input", { bubbles: true }));
+      return {
+        currency: currency.value,
+        note: document.getElementById("currency-note").textContent,
+      };
+    })()`);
+    assert.equal(picked.currency, "USD");
+    assert.equal(picked.note, "You picked USD. Your prices still show NT$.");
     page.ws.close();
   } finally {
     try { chrome.kill("SIGKILL"); } catch { /* already exited */ }
