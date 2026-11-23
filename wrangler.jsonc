@@ -1,0 +1,50 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "3d-print-cost-calculator",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-11-23",
+  "workers_dev": true,
+  "preview_urls": true,
+  "upload_source_maps": true,
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01
+    }
+  },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page",
+    "run_worker_first": true
+  },
+  "build": {
+    "command": "node scripts/build.js"
+  },
+  // Production deploy (wrangler deploy) is indexable.
+  "vars": {
+    "NOINDEX": "false"
+  },
+  // wrangler preview (branch URL) is not indexable.
+  "previews": {
+    "vars": {
+      "NOINDEX": "true"
+    }
+  },
+  // wrangler deploy --env preview publishes worker 3d-print-cost-calculator-preview.
+  "env": {
+    "preview": {
+      "name": "3d-print-cost-calculator-preview",
+      "workers_dev": true,
+      "vars": {
+        "NOINDEX": "true"
+      }
+    }
+  }
+}
