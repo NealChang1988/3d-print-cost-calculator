@@ -9,6 +9,7 @@ import {
   parseTime,
   plainText,
   quantityNote,
+  retainCurrencyNote,
 } from "../src/calc.js";
 import { DISCLAIMER } from "../src/copy.js";
 
@@ -283,6 +284,48 @@ test("currency symbols switch USD and do not confuse CA$ or A$ with $", () => {
   const mixed = currencyChoice("USD", ["NT$10", "€2"]);
   assert.equal(mixed.currency, "USD");
   assert.match(mixed.note, /more than one currency symbol/);
+});
+
+test("an auto-switch note stays until the symbol is gone or Currency is changed", () => {
+  const first = retainCurrencyNote({
+    current: "USD",
+    raws: ["NT$590", "", "", "", ""],
+    sticky: null,
+    fromSelector: false,
+  });
+  assert.equal(first.currency, "TWD");
+  assert.match(first.note, /Currency switched to TWD because you typed NT\$/);
+  const afterBlur = retainCurrencyNote({
+    current: first.currency,
+    raws: ["NT$590", "", "", "", ""],
+    sticky: first.sticky,
+    fromSelector: false,
+  });
+  assert.equal(afterBlur.note, first.note);
+  const afterOtherField = retainCurrencyNote({
+    current: afterBlur.currency,
+    raws: ["NT$590", "0.16", "", "", ""],
+    sticky: afterBlur.sticky,
+    fromSelector: false,
+  });
+  assert.equal(afterOtherField.note, first.note);
+  const plain = retainCurrencyNote({
+    current: afterOtherField.currency,
+    raws: ["590", "0.16", "", "", ""],
+    sticky: afterOtherField.sticky,
+    fromSelector: false,
+  });
+  assert.equal(plain.note, "");
+  assert.equal(plain.sticky, null);
+  const changed = retainCurrencyNote({
+    current: "EUR",
+    raws: ["NT$590"],
+    sticky: first.sticky,
+    fromSelector: true,
+  });
+  assert.equal(changed.currency, "EUR");
+  assert.match(changed.note, /Currency stays EUR/);
+  assert.equal(changed.sticky, null);
 });
 
 test("new print time formats round seconds and keep the old forms", () => {

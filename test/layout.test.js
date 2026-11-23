@@ -641,6 +641,25 @@ test("init syncs Print time typed before the script loads", { timeout: 60000 }, 
     })()`);
     assert.equal(switched.currency, "TWD");
     assert.match(switched.note, /Currency switched to TWD because you typed NT\$/);
+    const kept = await evaluate(page.client, `(() => {
+      const price = document.getElementById("material-price");
+      price.dispatchEvent(new Event("change", { bubbles: true }));
+      price.blur();
+      const afterBlur = document.getElementById("currency-note").textContent;
+      const power = document.getElementById("power");
+      power.value = "100";
+      power.dispatchEvent(new Event("input", { bubbles: true }));
+      return {
+        afterBlur,
+        afterEdit: document.getElementById("currency-note").textContent,
+        hidden: document.getElementById("currency-note").hidden,
+        currency: document.getElementById("currency").value,
+      };
+    })()`);
+    assert.match(kept.afterBlur, /Currency switched to TWD because you typed NT\$/);
+    assert.match(kept.afterEdit, /Currency switched to TWD because you typed NT\$/);
+    assert.equal(kept.hidden, false);
+    assert.equal(kept.currency, "TWD");
     page.ws.close();
   } finally {
     try { chrome.kill("SIGKILL"); } catch { /* already exited */ }

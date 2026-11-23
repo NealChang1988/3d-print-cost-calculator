@@ -1,4 +1,4 @@
-import { CURRENCIES, calculate, currencyChoice, formatMoney, parseTime, plainText, quantityNote } from "./calc.js";
+import { CURRENCIES, calculate, formatMoney, parseTime, plainText, quantityNote, retainCurrencyNote } from "./calc.js";
 import { EMPTY_RESULT, howMaterial, materialLabels, slicerHint } from "./copy.js";
 import { WORKED } from "./examples.js";
 
@@ -14,6 +14,7 @@ const STORE = {
 let currentMode = "filament";
 let latest = null;
 let syncing = false;
+let currencySticky = null;
 
 function load(key) {
   try {
@@ -194,14 +195,20 @@ function refreshQtyNotes() {
   }
 }
 
-function syncCurrency() {
-  const decision = currencyChoice($("currency").value, [
-    $("material-price").value,
-    $("electricity").value,
-    $("hourly-rate").value,
-    $("machine-price").value,
-    $("other-costs").value,
-  ]);
+function syncCurrency(fromSelector) {
+  const decision = retainCurrencyNote({
+    current: $("currency").value,
+    raws: [
+      $("material-price").value,
+      $("electricity").value,
+      $("hourly-rate").value,
+      $("machine-price").value,
+      $("other-costs").value,
+    ],
+    sticky: currencySticky,
+    fromSelector,
+  });
+  currencySticky = decision.sticky;
   if (decision.currency !== $("currency").value) $("currency").value = decision.currency;
   const note = $("currency-note");
   note.textContent = decision.note;
@@ -218,8 +225,8 @@ function updateBar(result) {
   $("bar-price").textContent = formatMoney(result.priceCents, result.currency);
 }
 
-function recalc() {
-  syncCurrency();
+function recalc(fromSelector) {
+  syncCurrency(fromSelector);
   refreshQtyNotes();
   const result = calculate(readInput());
   render(result);
@@ -279,7 +286,7 @@ function onEdit(event) {
     $("label-percent").textContent = $("method-margin").checked ? "Margin percent" : "Markup percent";
   }
   savePrefs();
-  recalc();
+  recalc(target.id === "currency");
 }
 
 function loadExample(id) {
@@ -336,6 +343,7 @@ async function copyText(text) {
 }
 
 function clearJob() {
+  currencySticky = null;
   for (const key of Object.values(STORE)) save(key, "");
   $("mode-filament").checked = true;
   currentMode = "filament";

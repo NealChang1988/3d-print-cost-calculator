@@ -219,6 +219,23 @@ export function currencyChoice(current, raws) {
   };
 }
 
+/** Keep an auto-switch note until the symbol is gone or the user changes Currency. */
+export function retainCurrencyNote({ current, raws, sticky, fromSelector }) {
+  const remembered = fromSelector ? null : sticky;
+  const decision = currencyChoice(current, raws);
+  let nextSticky = remembered;
+  if (decision.note.startsWith("Currency switched to ")) {
+    nextSticky = { currency: decision.currency, note: decision.note };
+  }
+  let note = decision.note;
+  if (!note && nextSticky) {
+    const symbolStillThere = raws.some((raw) => detectCurrency(raw) === nextSticky.currency);
+    if (symbolStillThere && decision.currency === nextSticky.currency) note = nextSticky.note;
+    else nextSticky = null;
+  }
+  return { currency: decision.currency, note, sticky: nextSticky };
+}
+
 function formatHM(hours) {
   const totalSeconds = Math.round(hours * 3600);
   const wholeHours = Math.floor(totalSeconds / 3600);
