@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{TITLE}}</title>
+  <meta name="description" content="{{DESCRIPTION}}">
+  <link rel="canonical" href="{{CANONICAL}}">
+  <meta property="og:title" content="{{TITLE}}">
+  <meta property="og:description" content="{{DESCRIPTION}}">
+  <meta property="og:url" content="{{CANONICAL}}">
+  <meta property="og:image" content="{{OG_IMAGE}}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <nav aria-label="Tool">
+      <a href="{{SELF}}" aria-current="page">{{TITLE}}</a>
+    </nav>
+  </header>
+  <main>
+    <h1>{{TITLE}}</h1>
+    <p class="lede">{{LEDE}}</p>
+    <noscript><p>Turn on JavaScript to calculate. The math still runs only in this browser.</p></noscript>
+
+    <section class="calculator" id="calculator" aria-label="Calculator">
+      <div class="inputs">
+        <div class="field">
+          <span class="label" id="mode-label">Material</span>
+          <div class="choices" role="radiogroup" aria-labelledby="mode-label">
+            <label for="mode-filament"><input id="mode-filament" type="radio" name="mode" value="filament" checked>Filament</label>
+            <label for="mode-resin"><input id="mode-resin" type="radio" name="mode" value="resin">Resin</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="material-price" id="label-price">Spool price</label>
+          <input id="material-price" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="e.g. 22.99">
+          <p class="hint">{{PRICE_HINT}}</p>
+        </div>
+
+        <div class="field">
+          <label for="package-amount" id="label-pack">Spool weight</label>
+          <div class="row">
+            <input id="package-amount" inputmode="decimal" autocomplete="off" spellcheck="false" value="1">
+            <select id="package-unit" aria-label="Spool weight unit">
+              <option value="g">g</option>
+              <option value="kg" selected>kg</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="usage-amount" id="label-usage">Print weight</label>
+          <div class="row">
+            <input id="usage-amount" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="e.g. 87.4">
+            <select id="usage-unit" aria-label="Print weight unit">
+              <option value="g" selected>g</option>
+              <option value="kg">kg</option>
+            </select>
+          </div>
+          <p class="hint" id="hint-slicer">{{SLICER_HINT}}</p>
+        </div>
+
+        <div class="field">
+          <label for="waste-amount">Extra waste</label>
+          <input id="waste-amount" inputmode="decimal" autocomplete="off" spellcheck="false">
+          <p class="hint">Supports, a purge tower, or a failed first layer. Leave blank for 0. The unit matches the print amount.</p>
+        </div>
+
+        <div class="field">
+          <label for="time-text">Print time</label>
+          <input id="time-text" autocomplete="off" spellcheck="false" placeholder="e.g. 5h 23m">
+          <p class="hint">{{TIME_HINT}}</p>
+        </div>
+        <div class="split">
+          <div class="field">
+            <label for="time-hours">Hours</label>
+            <input id="time-hours" inputmode="decimal" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="time-minutes">Minutes</label>
+            <input id="time-minutes" inputmode="decimal" autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="power">Power (W)</label>
+          <input id="power" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="e.g. 120">
+          <p class="hint">{{WATT_HINT}}</p>
+        </div>
+
+        <div class="field">
+          <label for="electricity">Electricity price</label>
+          <input id="electricity" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="e.g. 0.16">
+          <p class="hint">{{KWH_HINT}}</p>
+        </div>
+
+        <div class="split">
+          <div class="field">
+            <label for="labor-minutes">Hands-on minutes</label>
+            <input id="labor-minutes" inputmode="decimal" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="hourly-rate">Hourly rate</label>
+            <input id="hourly-rate" inputmode="decimal" autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+        <p class="hint">Minutes you spend slicing, taking the part off, or removing supports. Print time is not counted, because the printer runs on its own.</p>
+
+        <div class="field">
+          <label class="check" for="depreciation-on"><input id="depreciation-on" type="checkbox">Count machine wear</label>
+          <p class="hint">{{WEAR_HINT}}</p>
+        </div>
+        <div id="wear-fields" hidden>
+          <div class="field">
+            <label for="machine-price">Machine price</label>
+            <input id="machine-price" inputmode="decimal" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="machine-hours">Expected print hours</label>
+            <input id="machine-hours" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="e.g. 5000">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="other-costs">Other costs</label>
+            <input id="other-costs" inputmode="decimal" autocomplete="off" spellcheck="false">
+          <p class="hint">Screws, packaging, or other supplies you add up yourself. Nothing here is tax.</p>
+        </div>
+
+        <div class="field">
+          <label for="failure-rate">Failure rate (%)</label>
+          <input id="failure-rate" inputmode="decimal" autocomplete="off" spellcheck="false" value="0">
+          <p class="hint">{{FAILURE_HINT}}</p>
+        </div>
+
+        <div class="field">
+          <span class="label" id="method-label">Suggested price</span>
+          <div role="radiogroup" aria-labelledby="method-label">
+            <label class="check" for="method-markup"><input id="method-markup" type="radio" name="method" value="markup" checked>Markup</label>
+            <p class="hint">{{MARKUP_NOTE}}</p>
+            <label class="check" for="method-margin"><input id="method-margin" type="radio" name="method" value="margin">Margin</label>
+            <p class="hint">{{MARGIN_NOTE}}</p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="price-percent" id="label-percent">Markup percent</label>
+          <input id="price-percent" inputmode="decimal" autocomplete="off" spellcheck="false" value="50">
+        </div>
+
+        <div class="field">
+          <label for="currency">Currency</label>
+          <select id="currency">
+            <option value="USD">USD ($)</option>
+            <option value="EUR">EUR (€)</option>
+            <option value="GBP">GBP (£)</option>
+            <option value="CAD">CAD (CA$)</option>
+            <option value="TWD">TWD (NT$)</option>
+            <option value="AUD">AUD (A$)</option>
+          </select>
+          <p class="hint">{{CURRENCY_HINT}}</p>
+        </div>
+
+        <div class="field">
+          <label for="part-name">Part name</label>
+          <input id="part-name" autocomplete="off" maxlength="80">
+          <p class="hint">Only shown on the copied text and the printed page, so you can tell jobs apart. Not used in the math.</p>
+        </div>
+
+        <button type="button" id="reset">Reset</button>
+      </div>
+
+      <div class="results" id="results" aria-live="polite">
+        <p id="privacy">{{PRIVACY}}</p>
+        <div id="result-body"></div>
+        <p id="disclaimer">{{DISCLAIMER}}</p>
+        <div class="actions">
+          <button type="button" id="copy-result" disabled>Copy result</button>
+          <button type="button" id="print-page" disabled>Print</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="how" aria-labelledby="how-title">
+      <h2 id="how-title">How to use</h2>
+      <ol class="steps">
+        <li>
+          <svg viewBox="0 0 40 40" aria-hidden="true"><rect x="4" y="8" width="32" height="6" rx="2" fill="#0d5c56"/><rect x="8" y="17" width="24" height="6" rx="2" fill="#1c1915"/><rect x="4" y="26" width="32" height="6" rx="2" fill="#0d5c56"/></svg>
+          <p id="how-material">{{HOW_MATERIAL}}</p>
+        </li>
+        <li>
+          <svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="14" fill="none" stroke="#0d5c56" stroke-width="3"/><path d="M20 11 V20 L27 24" fill="none" stroke="#1c1915" stroke-width="3" stroke-linecap="round"/></svg>
+          <p>{{HOW_TIME}}</p>
+        </li>
+        <li>
+          <svg viewBox="0 0 40 40" aria-hidden="true"><rect x="13" y="6" width="16" height="20" rx="2" fill="none" stroke="#0d5c56" stroke-width="3"/><rect x="8" y="12" width="16" height="20" rx="2" fill="#fffdf8" stroke="#1c1915" stroke-width="3"/></svg>
+          <p>{{HOW_KEEP}}</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="example" aria-labelledby="example-title">
+      <h2 id="example-title">Result example</h2>
+      <p>This table only shows how pasted text is read. It is not a price list.</p>
+      <table>
+        <thead>
+          <tr><th>Before</th><th>After</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>5h 23m</td><td>5 hours 23 minutes</td></tr>
+          <tr><td>87,4 g</td><td>87.4 g</td></tr>
+          <tr><td>$22.99</td><td>22.99</td></tr>
+          <tr><td>1,000</td><td>1000</td></tr>
+          <tr><td>NT$590</td><td>590</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="faq" aria-labelledby="faq-title">
+      <h2 id="faq-title">FAQ</h2>
+      <h3>What do I type for print time?</h3>
+      <p>Paste 5h 23m, 5:23, or 323 min. Hours and Minutes stay in step with Print time.</p>
+      <h3>What is markup, and what is margin?</h3>
+      <p>{{MARKUP_NOTE}}</p>
+      <p>{{MARGIN_NOTE}} Markup and margin are different methods, and they give different prices.</p>
+      <h3>Does this add tax?</h3>
+      <p>There is no sales tax, VAT, or income tax field. Add any tax yourself, outside this estimate.</p>
+      <h3>Are my numbers sent anywhere?</h3>
+      <p>{{PRIVACY}}</p>
+      <h3>What is a slicer?</h3>
+      <p>{{SLICER_HINT}}</p>
+      <h3>What is a kWh?</h3>
+      <p>{{KWH_HINT}}</p>
+      <h3>What is filament, and what is resin?</h3>
+      <p>Filament is a spool of plastic that is melted and stacked. Resin is a liquid that is cured by light. Switching mode only changes the amount and the price unit.</p>
+      <h3>Should I charge the suggested price?</h3>
+      <p>{{DISCLAIMER}}</p>
+    </section>
+
+    <p class="also">Same calculator: <a href="{{OTHER_HREF}}">{{OTHER_NAME}}</a></p>
+    <p class="feedback"><a href="mailto:{{EMAIL}}">Send feedback</a></p>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

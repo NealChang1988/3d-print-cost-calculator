@@ -1,0 +1,194 @@
+:root {
+  --bg: #f3efe4;
+  --ink: #1c1915;
+  --card: #fffdf8;
+  --line: #ddd4c4;
+  --accent: #0d5c56;
+  --accent-ink: #ffffff;
+  --danger: #8d1d1d;
+  --danger-bg: #fdecea;
+  --muted: #5e584e;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--bg);
+  font: 16px/1.45 system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+header, main {
+  width: min(100%, 68rem);
+  margin: 0 auto;
+  padding: 0.35rem 0.75rem 0;
+}
+
+main { padding-bottom: 1.5rem; }
+
+nav a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+h1 {
+  font-size: 1.45rem;
+  line-height: 1.15;
+  margin: 0.2rem 0 0.35rem;
+}
+
+h2 { font-size: 1.15rem; margin: 0 0 0.55rem; }
+h3 { font-size: 1rem; margin: 0.75rem 0 0.2rem; }
+
+.lede { margin: 0 0 0.7rem; }
+
+.calculator {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.inputs, .results, .how, .example, .faq {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.7rem 0.75rem;
+  min-width: 0;
+}
+
+.field { margin: 0 0 0.6rem; }
+
+label, .label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+}
+
+input, select, button { font: inherit; color: inherit; }
+
+input, select {
+  width: 100%;
+  max-width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #c9c0b0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.row, .split, .choices, .actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.row input, .split .field { min-width: 0; flex: 1; }
+.row select { width: 4.75rem; flex: none; }
+.split .field { margin: 0; }
+.choices { flex-wrap: wrap; }
+.choices label, .check {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  font-weight: 600;
+  margin: 0;
+}
+.choices input, .check input { width: auto; }
+
+.hint, .formula, .reada, .note, .also {
+  color: var(--muted);
+  font-size: 0.92rem;
+  margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.results { overflow-wrap: anywhere; }
+
+.line {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.line-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.line-head span { min-width: 0; }
+.line-head strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.line.price strong { font-size: 1.45rem; }
+
+.errors {
+  background: var(--danger-bg);
+  color: var(--danger);
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  margin: 0.4rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+button {
+  min-height: 44px;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: #fff;
+  color: var(--accent);
+}
+
+button:disabled { opacity: 0.55; }
+#copy-result { background: var(--accent); color: var(--accent-ink); }
+.actions { margin-top: 0.7rem; flex-wrap: wrap; }
+#reset { margin-top: 0.2rem; }
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.steps svg { width: 2.5rem; height: 2.5rem; }
+.steps p { margin: 0; }
+
+.how, .example, .faq { margin-top: 0.75rem; }
+
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+th, td {
+  text-align: left;
+  padding: 0.35rem 0.25rem;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.feedback, .also { margin: 0.8rem 0 0; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (min-width: 860px) {
+  header, main { padding-left: 1rem; padding-right: 1rem; }
+  h1 { font-size: 2rem; }
+  .calculator {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    align-items: start;
+  }
+  .results { position: sticky; top: 0.5rem; }
+}
+
+@media print {
+  header, .inputs, .how, .example, .faq, .feedback, .also, .actions, .hint {
+    display: none !important;
+  }
+  body { background: #fff; }
+  main { width: auto; padding: 0; }
+  .results, .calculator { display: block; border: 0; background: #fff; }
+}
