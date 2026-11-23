@@ -518,3 +518,61 @@ test("375px shows the title and first inputs, and the browser matches examples A
     await rm(profile, { recursive: true, force: true }).catch(() => {});
   }
 });
+
+test("init syncs Print time typed before the script loads", { timeout: 60000 }, async () => {
+  assert.ok(CHROME, "Chrome is required for the layout check");
+  const outDir = await mkdtemp(path.join(tmpdir(), "3dprint-site-"));
+  const profile = await mkdtemp(path.join(tmpdir(), "3dprint-chrome-"));
+  await buildSite({ outDir, siteUrl: "http://127.0.0.1" });
+  const pageHtml = await readFile(path.join(outDir, "index.html"), "utf8");
+  await writeFile(
+    path.join(outDir, "before-script.html"),
+    pageHtml.replace('<script type="module" src="/app.js"></script>', ""),
+  );
+  const server = await serve(outDir);
+  const { port } = server.address();
+  const debugPort = 9800 + Math.floor(Math.random() * 200);
+  const chrome = spawn(CHROME, [
+    "--headless=new",
+    "--no-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    `--remote-debugging-port=${debugPort}`,
+    "--remote-allow-origins=*",
+    `--user-data-dir=${profile}`,
+    "about:blank",
+  ], { stdio: "ignore" });
+  try {
+    await waitJson(`http://127.0.0.1:${debugPort}/json/version`);
+    const page = await openPage(debugPort);
+    await goto(page.client, `http://127.0.0.1:${port}/before-script.html`);
+    const synced = await evaluate(page.client, `(() => {
+      document.getElementById("time-text").value = "5h 23m";
+      const script = document.createElement("script");
+      script.type = "module";
+      script.src = "/app.js";
+      document.body.append(script);
+      return new Promise((resolve) => {
+        const start = Date.now();
+        const tick = () => {
+          const hours = document.getElementById("time-hours").value;
+          const minutes = document.getElementById("time-minutes").value;
+          if ((hours === "5" && minutes === "23") || Date.now() - start > 5000) {
+            resolve({ hours, minutes, timeText: document.getElementById("time-text").value });
+          } else {
+            setTimeout(tick, 20);
+          }
+        };
+        tick();
+      });
+    })()`);
+    assert.deepEqual(synced, { hours: "5", minutes: "23", timeText: "5h 23m" });
+    page.ws.close();
+  } finally {
+    try { chrome.kill("SIGKILL"); } catch { /* already exited */ }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await new Promise((resolve) => server.close(resolve));
+    await rm(outDir, { recursive: true, force: true }).catch(() => {});
+    await rm(profile, { recursive: true, force: true }).catch(() => {});
+  }
+});

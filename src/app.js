@@ -322,4 +322,17 @@ if (restoredPower) $("power").value = restoredPower;
 if (restoredElectricity) $("electricity").value = restoredElectricity;
 if (restoredHourly) $("hourly-rate").value = restoredHourly;
 if (restoredSpool) $("material-price").value = restoredSpool;
+
+// Values typed before this script loaded, or restored on back/forward, never fired input.
+function syncRestoredFields() {
+  if ($("mode-resin").checked) onModeChange();
+  const timeText = $("time-text").value.trim();
+  const hours = $("time-hours").value.trim();
+  const minutes = $("time-minutes").value.trim();
+  if (timeText) onTimeText();
+  else if (hours || minutes) onTimeParts();
+  $("wear-fields").hidden = !$("depreciation-on").checked;
+  $("label-percent").textContent = $("method-margin").checked ? "Margin percent" : "Markup percent";
+}
+syncRestoredFields();
 recalc();
