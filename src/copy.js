@@ -12,8 +12,18 @@ export const SYNONYM_DESCRIPTION =
 export const LEDE =
   "Estimate the cost of one 3D print, then turn that cost into a suggested price.";
 
-export const PRIVACY =
-  "Your numbers stay in this browser. Nothing is uploaded.";
+export const SYNONYM_LEDE =
+  "Walk through five practice costs, then type your own filament or resin job into the same calculator.";
+
+export const SYNONYM_INTRO =
+  "The prices in these examples are made up so each line can be checked by hand. They are not shop prices or a quote.";
+
+export const HOME_EXAMPLES_LINK = "See 5 worked cost examples (filament and resin)";
+
+export const PRIVACY = "Your numbers stay in this browser.";
+
+export const FAQ_NUMBERS =
+  "Your numbers stay in this browser. We count page visits, but never the numbers you type.";
 
 export const DISCLAIMER =
   "This is an estimate from the numbers you entered. It is not financial, tax, or legal advice. The suggested price is only a simple figure calculated from your cost. It is not a price you have to charge.";
@@ -52,7 +62,7 @@ export const FAILURE_HINT =
 export const WEAR_HINT =
   "Machine wear is the machine price divided by the hours you expect it to print, times this job's hours.";
 
-export const TIME_HINT = "Enter a time like 5h 23m, 5:23, or 323 min.";
+export const TIME_HINT = "Enter a time like 5h 23m, 5:23, 23m 12s, 1d 2h, or 05:23:00.";
 
 export const PRICE_HINT =
   "You can paste a symbol, such as $22.99 or NT$590. The symbol is not a currency conversion.";

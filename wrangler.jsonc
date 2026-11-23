@@ -31,10 +31,20 @@
   "vars": {
     "NOINDEX": "false"
   },
-  // Preview deploy (wrangler preview, *.workers.dev) is not indexable.
+  // wrangler preview (branch URL) is not indexable.
   "previews": {
     "vars": {
       "NOINDEX": "true"
+    }
+  },
+  // wrangler deploy --env preview publishes worker 3d-print-cost-calculator-preview.
+  "env": {
+    "preview": {
+      "name": "3d-print-cost-calculator-preview",
+      "workers_dev": true,
+      "vars": {
+        "NOINDEX": "true"
+      }
     }
   }
 }

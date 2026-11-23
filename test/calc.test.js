@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { calculate, formatMoney, parseLooseNumber, parseTime, plainText } from "../src/calc.js";
+import {
+  calculate,
+  currencyChoice,
+  detectCurrency,
+  formatMoney,
+  parseLooseNumber,
+  parseTime,
+  plainText,
+  quantityNote,
+} from "../src/calc.js";
 import { DISCLAIMER } from "../src/copy.js";
 
 function exampleA(overrides = {}) {
@@ -225,6 +234,69 @@ test("parseTime keeps exact hours for the documented forms", () => {
   assert.equal(parseTime("5,5").hours, 5.5);
   assert.equal(parseTime("abc").ok, false);
   assert.equal(parseTime("   ").ok, false);
+});
+
+test("typed weight units convert, and a mismatched unit does not calculate", () => {
+  const grams = calculate(exampleA({ packageAmount: "1.2 kg", packageUnit: "g" }));
+  const ignored = calculate(exampleA({ packageAmount: "1.2", packageUnit: "g" }));
+  assert.equal(formatMoney(grams.lines[0].cents, "USD"), "$1.67");
+  assert.notEqual(grams.lines[0].cents, ignored.lines[0].cents);
+  assert.equal(quantityNote("1.2 kg", "weight", "g").note, "Read as 1,200 g");
+
+  const spool = calculate(exampleA({ packageAmount: "1000g", packageUnit: "kg" }));
+  assert.equal(spool.ok, true, spool.errors && spool.errors.join("; "));
+  assert.equal(spool.errors.some((error) => error.includes("20 kg")), false);
+  assert.equal(formatMoney(spool.lines[0].cents, "USD"), "$2.01");
+  assert.equal(quantityNote("1000g", "weight", "kg").note, "Read as 1 kg");
+
+  const mismatch = calculate(exampleA({ usageAmount: "12 ml" }));
+  assert.equal(mismatch.ok, false);
+  assert.match(mismatch.errors.join(" "), /volume unit/);
+  assert.equal(JSON.stringify(mismatch).includes("NaN"), false);
+  const resinMismatch = calculate(exampleA({
+    mode: "resin",
+    packageAmount: "1",
+    packageUnit: "L",
+    usageAmount: "10 g",
+    usageUnit: "ml",
+  }));
+  assert.equal(resinMismatch.ok, false);
+  assert.match(resinMismatch.errors.join(" "), /weight unit/);
+});
+
+test("currency symbols switch USD and do not confuse CA$ or A$ with $", () => {
+  assert.equal(detectCurrency("CA$12"), "CAD");
+  assert.equal(detectCurrency("A$12"), "AUD");
+  assert.equal(detectCurrency("$12"), "USD");
+  assert.equal(detectCurrency("NT$590"), "TWD");
+  assert.equal(detectCurrency("€9"), "EUR");
+  assert.equal(detectCurrency("£4"), "GBP");
+  assert.deepEqual(currencyChoice("USD", ["NT$590"]), {
+    currency: "TWD",
+    note: "Currency switched to TWD because you typed NT$.",
+  });
+  assert.equal(currencyChoice("USD", ["$22.99"]).note, "");
+  const stay = currencyChoice("EUR", ["NT$590"]);
+  assert.equal(stay.currency, "EUR");
+  assert.match(stay.note, /Currency stays EUR/);
+  assert.match(stay.note, /NT\$/);
+  const mixed = currencyChoice("USD", ["NT$10", "€2"]);
+  assert.equal(mixed.currency, "USD");
+  assert.match(mixed.note, /more than one currency symbol/);
+});
+
+test("new print time formats round seconds and keep the old forms", () => {
+  const base = parseTime("5h 23m");
+  assert.equal(parseTime("5h 23m 12s").hours, base.hours);
+  assert.equal(parseTime("05:23:00").hours, base.hours);
+  assert.equal(parseTime("23m 12s").hours, 23 / 60);
+  assert.equal(parseTime("23m 30s").hours, 24 / 60);
+  assert.equal(parseTime("1d 2h 3m").hours, 26 + 3 / 60);
+  assert.equal(parseTime("1d 2h 3m").wholeHours, 26);
+  assert.equal(parseTime("1d 2h 3m").minutePart, 3);
+  const withSeconds = money(calculate(exampleA({ timeText: "5h 23m 12s" })));
+  assert.equal(withSeconds.price, "$10.67");
+  assert.equal(parseTime("nope").ok, false);
 });
 
 test("depreciation fields are ignored while the switch is off", () => {

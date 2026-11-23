@@ -78,7 +78,7 @@ function parseGrouped(body) {
   return neg ? -n : n;
 }
 
-/** Parse a pasted number, price, or amount. Does not apply range limits. */
+/** Parse a pasted number or price. Does not apply range limits. */
 export function parseLooseNumber(raw) {
   if (raw == null) return { ok: false, reason: "empty" };
   let s = String(raw).trim().replace(/\s+/g, "").replace(/^−/, "-");
@@ -104,6 +104,121 @@ export function parseLooseNumber(raw) {
   return { ok: true, value: n };
 }
 
+const UNIT_WORD = /(kg|ml|g|l)$/i;
+
+export function formatQty(n) {
+  if (!Number.isFinite(n)) return "";
+  const rounded = Math.round(n * 1000) / 1000;
+  const negative = rounded < 0;
+  const [whole, frac] = Math.abs(rounded).toFixed(3).replace(/\.?0+$/, "").split(".");
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${negative ? "-" : ""}${frac ? `${grouped}.${frac}` : grouped}`;
+}
+
+/**
+ * Weight or volume. A typed unit wins over the dropdown.
+ * kind is "weight" (g, kg) or "volume" (ml, L).
+ */
+export function parseQuantity(raw, kind) {
+  if (raw == null || String(raw).trim() === "") return { ok: false, reason: "empty" };
+  let body = String(raw).trim().replace(/\s+/g, "").replace(/^−/, "-").toLowerCase();
+  if (!body) return { ok: false, reason: "empty" };
+  let unit = null;
+  const suffix = body.match(UNIT_WORD);
+  if (suffix) {
+    unit = suffix[1] === "l" ? "L" : suffix[1];
+    body = body.slice(0, -suffix[1].length);
+  }
+  const value = parseGrouped(body);
+  if (value == null) return { ok: false, reason: "format" };
+  if (unit) {
+    const weight = unit === "g" || unit === "kg";
+    if (kind === "weight" && !weight) {
+      return { ok: false, reason: "unit", error: `${unit} is a volume unit. This field uses g or kg.` };
+    }
+    if (kind === "volume" && weight) {
+      return { ok: false, reason: "unit", error: `${unit} is a weight unit. This field uses ml or L.` };
+    }
+  }
+  return { ok: true, value, unit };
+}
+
+export function quantityNote(raw, kind, dropdown) {
+  const parsed = parseQuantity(raw, kind);
+  if (!parsed.ok) {
+    return parsed.reason === "unit" ? { error: parsed.error, note: "" } : { error: "", note: "" };
+  }
+  if (!parsed.unit) return { error: "", note: "" };
+  const base = parsed.unit === "kg" || parsed.unit === "L" ? parsed.value * 1000 : parsed.value;
+  const shown = dropdown === "kg" || dropdown === "L" ? base / 1000 : base;
+  return { error: "", note: `Read as ${formatQty(shown)} ${dropdown}` };
+}
+
+const CURRENCY_MARKERS = [
+  ["nt$", "TWD"],
+  ["ntd", "TWD"],
+  ["twd", "TWD"],
+  ["ca$", "CAD"],
+  ["cad", "CAD"],
+  ["au$", "AUD"],
+  ["aud", "AUD"],
+  ["a$", "AUD"],
+  ["us$", "USD"],
+  ["usd", "USD"],
+  ["€", "EUR"],
+  ["eur", "EUR"],
+  ["£", "GBP"],
+  ["gbp", "GBP"],
+  ["$", "USD"],
+];
+
+const TYPED_SYMBOL = {
+  USD: "$",
+  EUR: "€",
+  GBP: "£",
+  CAD: "CA$",
+  TWD: "NT$",
+  AUD: "A$",
+};
+
+export function detectCurrency(raw) {
+  if (raw == null) return null;
+  const s = String(raw).toLowerCase().replace(/\s+/g, "");
+  if (!s) return null;
+  for (const [marker, code] of CURRENCY_MARKERS) {
+    if (s.includes(marker)) return code;
+  }
+  return null;
+}
+
+export function currencyChoice(current, raws) {
+  const found = [];
+  for (const raw of raws) {
+    const code = detectCurrency(raw);
+    if (code) found.push(code);
+  }
+  const unique = [...new Set(found)];
+  if (unique.length === 0) return { currency: current, note: "" };
+  if (unique.length > 1) {
+    return {
+      currency: current,
+      note: "These prices use more than one currency symbol. The selector was not changed. Amounts are not converted.",
+    };
+  }
+  const detected = unique[0];
+  if (detected === current) return { currency: current, note: "" };
+  if (current === "USD") {
+    return {
+      currency: detected,
+      note: `Currency switched to ${detected} because you typed ${TYPED_SYMBOL[detected]}.`,
+    };
+  }
+  return {
+    currency: current,
+    note: `Currency stays ${current}. You typed ${TYPED_SYMBOL[detected]}, and amounts are not converted.`,
+  };
+}
+
 function formatHM(hours) {
   const totalSeconds = Math.round(hours * 3600);
   const wholeHours = Math.floor(totalSeconds / 3600);
@@ -116,47 +231,72 @@ function formatHM(hours) {
   };
 }
 
+function finishTime(totalMinutes) {
+  if (!Number.isFinite(totalMinutes)) return { ok: false, reason: "format" };
+  const hours = totalMinutes / 60;
+  const shown = formatHM(hours);
+  const formula = shown.minutePart === 0
+    ? String(shown.wholeHours)
+    : `${shown.wholeHours} + ${trimNum(shown.minutePart)}/60`;
+  return { ok: true, hours, formula, ...shown };
+}
+
 /**
- * Read a print time as exact hours (not pre-rounded).
- * reason: empty | format
+ * Read a print time as hours. Seconds round to the nearest minute.
+ * Days add 24 hours each. reason: empty | format
  */
 export function parseTime(raw) {
   if (raw == null || String(raw).trim() === "") return { ok: false, reason: "empty" };
   const s = String(raw).trim().replace(/\s+/g, " ").toLowerCase().replace(/−/g, "-");
-  const num = "(\\d[\\d.,]*)";
-  let hours = null;
-  let formula = null;
 
-  let m = s.match(/^(\d+):(\d{1,2})$/);
+  let m = s.match(/^(\d+):(\d{2}):(\d{2})$/);
+  if (m) {
+    const h = Number(m[1]);
+    const min = Number(m[2]);
+    const sec = Number(m[3]);
+    if (min >= 60 || sec >= 60) return { ok: false, reason: "format" };
+    return finishTime(h * 60 + min + Math.round(sec / 60));
+  }
+  m = s.match(/^(\d+):(\d{1,2})$/);
   if (m) {
     const h = Number(m[1]);
     const min = Number(m[2]);
     if (min >= 60) return { ok: false, reason: "format" };
-    hours = h + min / 60;
-    formula = min === 0 ? String(h) : `${h} + ${min}/60`;
-  } else if ((m = s.match(new RegExp(`^${num}\\s*(?:hours|hour|hrs|hr|h)\\s*(?:${num}\\s*(?:minutes|minute|mins|min|m))?$`)))) {
-    const h = parseGrouped(m[1]);
-    const min = m[2] == null ? 0 : parseGrouped(m[2]);
-    if (h == null || min == null) return { ok: false, reason: "format" };
-    hours = h + min / 60;
-    formula = min === 0 ? trimNum(h) : `${trimNum(h)} + ${trimNum(min)}/60`;
-  } else if ((m = s.match(new RegExp(`^${num}\\s*(?:minutes|minute|mins|min|m)$`)))) {
-    const min = parseGrouped(m[1]);
-    if (min == null) return { ok: false, reason: "format" };
-    hours = min / 60;
-    formula = `${trimNum(min)}/60`;
-  } else if ((m = s.match(new RegExp(`^${num}$`)))) {
-    const h = parseGrouped(m[1]);
-    if (h == null) return { ok: false, reason: "format" };
-    hours = h;
-    formula = trimNum(h);
-  } else {
-    return { ok: false, reason: "format" };
+    return finishTime(h * 60 + min);
   }
 
-  if (!Number.isFinite(hours)) return { ok: false, reason: "format" };
-  const shown = formatHM(hours);
-  return { ok: true, hours, formula, ...shown };
+  const token = /\s*(\d[\d.,]*)\s*(days|day|d|hours|hour|hrs|hr|h|minutes|minute|mins|min|m|seconds|second|secs|sec|s)/y;
+  const parts = { d: null, h: null, m: null, s: null };
+  const unitOf = {
+    d: "d", day: "d", days: "d",
+    h: "h", hr: "h", hrs: "h", hour: "h", hours: "h",
+    m: "m", min: "m", mins: "m", minute: "m", minutes: "m",
+    s: "s", sec: "s", secs: "s", second: "s", seconds: "s",
+  };
+  let saw = false;
+  while (token.lastIndex < s.length) {
+    const match = token.exec(s);
+    if (!match) break;
+    const value = parseGrouped(match[1]);
+    const key = unitOf[match[2]];
+    if (value == null || parts[key] != null) return { ok: false, reason: "format" };
+    parts[key] = value;
+    saw = true;
+    if (token.lastIndex === s.length) {
+      const seconds = parts.s || 0;
+      const minutes = (parts.d || 0) * 24 * 60 + (parts.h || 0) * 60 + (parts.m || 0) + Math.round(seconds / 60);
+      return finishTime(minutes);
+    }
+  }
+  if (saw) return { ok: false, reason: "format" };
+
+  const bare = s.match(/^(\d[\d.,]*)$/);
+  if (bare) {
+    const h = parseGrouped(bare[1]);
+    if (h == null) return { ok: false, reason: "format" };
+    return finishTime(h * 60);
+  }
+  return { ok: false, reason: "format" };
 }
 
 function baseUnit(mode) {
@@ -196,6 +336,28 @@ function line(id, label, unrounded, formula) {
   return { id, label, cents, formula };
 }
 
+function readAmount(raw, { label, kind, dropdown, required }) {
+  const parsed = parseQuantity(raw, kind);
+  if (!parsed.ok) {
+    if (parsed.reason === "empty") {
+      if (!required) return { blank: true, base: 0 };
+      return { error: `Enter ${label}.` };
+    }
+    if (parsed.reason === "unit") {
+      return { error: `${label}: ${parsed.error} Nothing is calculated from that value.` };
+    }
+    return {
+      error: `${label} is not a number. Enter a value like ${kind === "volume" ? "38.5 or 12 ml" : "87.4 or 1.2 kg"}.`,
+    };
+  }
+  if (parsed.value < 0) return { error: `${label} cannot be negative.` };
+  const unit = parsed.unit || dropdown;
+  if (!packageUnitOk(kind === "volume" ? "resin" : "filament", unit)) {
+    return { error: `${label} needs a ${kind === "volume" ? "ml or L" : "g or kg"} unit.` };
+  }
+  return { blank: false, base: toBase(parsed.value, unit) };
+}
+
 export function calculate(input) {
   const errors = [];
   const mode = input.mode === "resin" ? "resin" : input.mode === "filament" ? "filament" : null;
@@ -209,6 +371,7 @@ export function calculate(input) {
   const unitName = mode === "resin" ? "ml" : "g";
   const packMaxLabel = mode === "resin" ? "20 L" : "20 kg";
 
+  const kind = mode === "resin" ? "volume" : "weight";
   const price = fieldNumber(input.materialPrice, {
     label: names.price,
     required: true,
@@ -221,63 +384,57 @@ export function calculate(input) {
       : price.error.replace(`Enter ${names.price}.`, `Enter ${names.price}, for example ${mode === "resin" ? "39.00" : "22.99"}.`));
   }
 
-  const pack = fieldNumber(input.packageAmount, { label: names.pack, required: true, min: 0 });
+  const pack = readAmount(input.packageAmount, {
+    label: names.pack,
+    kind,
+    dropdown: input.packageUnit,
+    required: true,
+  });
   let packBase = null;
   if (pack.error) {
-    errors.push(pack.value === 0 || String(input.packageAmount).trim() === "0" || pack.error.includes("at least")
+    errors.push(pack.error.includes("at least 0") || String(input.packageAmount).trim() === "0"
       ? `${names.pack} must be more than 0. Enter the amount on the package.`
       : pack.error);
-  } else if (pack.value === 0) {
+  } else if (pack.base === 0) {
     errors.push(`${names.pack} must be more than 0. Enter the amount on the package.`);
-  } else if (!packageUnitOk(mode, input.packageUnit)) {
-    errors.push(`${names.pack} needs a ${mode === "resin" ? "ml or L" : "g or kg"} unit.`);
+  } else if (pack.base > 20000) {
+    errors.push(`${names.pack} must be ${packMaxLabel} or less.`);
   } else {
-    packBase = toBase(pack.value, input.packageUnit);
-    const maxBase = 20000;
-    if (packBase > maxBase) {
-      errors.push(`${names.pack} must be ${packMaxLabel} or less.`);
-      packBase = null;
-    }
+    packBase = pack.base;
   }
 
-  const usage = fieldNumber(input.usageAmount, { label: names.usage, required: true, min: 0 });
+  const usage = readAmount(input.usageAmount, {
+    label: names.usage,
+    kind,
+    dropdown: input.usageUnit,
+    required: true,
+  });
   let usageBase = null;
   if (usage.error) {
-    if (usage.error.startsWith("Enter ")) {
-      errors.push(`Enter ${names.usage}, for example ${mode === "resin" ? "38.5 ml" : "87.4 g"}.`);
-    } else if (usage.error.includes("at least")) {
-      errors.push(`${names.usage} cannot be negative.`);
-    } else {
-      errors.push(`${names.usage} is not a number. Enter a value like ${mode === "resin" ? "38.5 or 38,5 ml" : "87.4 or 87,4 g"}.`);
-    }
-  } else if (!packageUnitOk(mode, input.usageUnit)) {
-    errors.push(`${names.usage} needs a ${mode === "resin" ? "ml or L" : "g or kg"} unit.`);
+    errors.push(usage.error.startsWith("Enter ")
+      ? `Enter ${names.usage}, for example ${mode === "resin" ? "38.5 ml" : "87.4 g"}.`
+      : usage.error);
+  } else if (usage.base < 0.01 || usage.base > 50000) {
+    errors.push(`${names.usage} must be from 0.01 ${unitName} to 50,000 ${unitName}. Enter an amount in that range.`);
   } else {
-    usageBase = toBase(usage.value, input.usageUnit);
-    if (usageBase < 0.01 || usageBase > 50000) {
-      errors.push(`${names.usage} must be from 0.01 ${unitName} to 50,000 ${unitName}. Enter an amount in that range.`);
-      usageBase = null;
-    }
+    usageBase = usage.base;
   }
 
-  const wasteRaw = input.wasteAmount;
-  const wasteParsed = fieldNumber(wasteRaw, { label: names.waste, required: false, allowBlankZero: true, min: 0 });
+  const waste = readAmount(input.wasteAmount, {
+    label: names.waste,
+    kind,
+    dropdown: input.wasteUnit || input.usageUnit,
+    required: false,
+  });
   let wasteBase = 0;
-  if (wasteParsed.error) {
-    errors.push(wasteParsed.error.includes("at least")
+  if (waste.error) {
+    errors.push(waste.error.includes("cannot be negative")
       ? "Extra waste cannot be negative. Enter 0 or leave it blank."
-      : "Extra waste is not a number. Enter 0 or leave it blank.");
-  } else if (!wasteParsed.blank && wasteParsed.value > 0) {
-    const wasteUnit = input.wasteUnit || input.usageUnit;
-    if (!packageUnitOk(mode, wasteUnit)) {
-      errors.push("Extra waste needs the same kind of unit as the print amount.");
-    } else {
-      wasteBase = toBase(wasteParsed.value, wasteUnit);
-      if (wasteBase > 50000) {
-        errors.push(`Extra waste must be 50,000 ${unitName} or less.`);
-        wasteBase = 0;
-      }
-    }
+      : waste.error);
+  } else if (!waste.blank && waste.base > 50000) {
+    errors.push(`Extra waste must be 50,000 ${unitName} or less.`);
+  } else if (!waste.blank) {
+    wasteBase = waste.base;
   }
 
   const time = parseTime(input.timeText);

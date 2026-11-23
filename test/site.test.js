@@ -11,8 +11,12 @@ import {
   HOW_TIME,
   MARKUP_NOTE,
   MARGIN_NOTE,
+  FAQ_NUMBERS,
+  HOME_EXAMPLES_LINK,
+  LEDE,
   PRIVACY,
   SYNONYM_DESCRIPTION,
+  SYNONYM_LEDE,
   TOOL_HOME,
   TOOL_SYNONYM,
   howMaterial,
@@ -162,6 +166,53 @@ test("how to use has 3 boxes whose sentences use the field labels", async () => 
   for (const label of ["Filament", "Resin", "Spool price", "Spool weight", "Print weight", "Print time", "Hours", "Minutes", "Power (W)", "Electricity price", "Copy result", "Print"]) {
     assert.ok(home.includes(label), label);
   }
+});
+
+test("the synonym page has its own examples and both pages mention visit counts", async () => {
+  const { outDir, home, other } = await built();
+  assert.ok(home.includes(HOME_EXAMPLES_LINK));
+  assert.equal(home.includes("Same calculator"), false);
+  assert.equal(home.includes('id="worked-examples"'), false);
+  assert.ok(home.includes(LEDE));
+  assert.ok(other.includes(SYNONYM_LEDE));
+  assert.equal(other.includes(LEDE), false);
+  assert.ok(other.includes('id="worked-examples"'));
+  for (const price of ["$10.67", "$13.23", "$1.06", "$2.31", "$2.29"]) {
+    assert.ok(other.includes(price), price);
+  }
+  for (const id of ["A", "B", "C", "D", "E"]) {
+    assert.ok(other.includes(`data-example="${id}"`), id);
+    assert.ok(other.includes(`Load example ${id}`), id);
+  }
+  assert.ok(other.includes("Example D. Resin"));
+  assert.ok(home.includes(FAQ_NUMBERS));
+  assert.ok(other.includes(FAQ_NUMBERS));
+  assert.equal(home.includes("Nothing is uploaded"), false);
+  assert.equal(other.includes("Nothing is uploaded"), false);
+  assert.equal(home.includes("beacon.min.js"), false);
+  const notFound = await readFile(path.join(outDir, "404.html"), "utf8");
+  assert.equal(notFound.includes("beacon.min.js"), false);
+  const css = await readFile(path.join(outDir, "styles.css"), "utf8");
+  assert.match(css, /#price-bar|\.price-bar/);
+  assert.match(css, /position:\s*fixed/);
+  assert.match(css, /max-width:\s*859px/);
+  assert.match(css, /safe-area-inset-bottom/);
+  assert.ok(home.includes('id="price-bar"'));
+  assert.ok(other.includes('id="price-bar"'));
+});
+
+test("CF_BEACON_TOKEN adds the analytics script only when set", async () => {
+  const outDir = await mkdtemp(path.join(tmpdir(), "3dprint-beacon-"));
+  await buildSite({ outDir, siteUrl: "https://calc.example", beaconToken: "abc_123" });
+  for (const file of ["index.html", "3d-printing-cost-calculator/index.html", "404.html"]) {
+    const html = await readFile(path.join(outDir, file), "utf8");
+    assert.match(html, /src="https:\/\/static\.cloudflareinsights\.com\/beacon\.min\.js"/);
+    assert.match(html, /data-cf-beacon='\{"token":"abc_123"\}'/);
+    assert.equal(/beacon\.min\.js\?/.test(html), false);
+  }
+  await buildSite({ outDir, siteUrl: "https://calc.example", beaconToken: "" });
+  const home = await readFile(path.join(outDir, "index.html"), "utf8");
+  assert.equal(home.includes("cloudflareinsights"), false);
 });
 
 test("result example is a Before / After table", async () => {

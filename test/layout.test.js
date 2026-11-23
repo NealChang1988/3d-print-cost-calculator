@@ -144,7 +144,8 @@ async function evaluate(client, expression) {
     returnByValue: true,
   });
   if (result.exceptionDetails) {
-    throw new Error(result.exceptionDetails.text || "Page script failed");
+    const details = result.exceptionDetails;
+    throw new Error(details.exception?.description || details.text || JSON.stringify(details));
   }
   return result.result.value;
 }
@@ -190,6 +191,8 @@ test("375px shows the title and first inputs, and the browser matches examples A
         usage: box("#usage-amount"),
         title: document.title,
         h1Text: document.querySelector("h1").textContent,
+        barDisplay: getComputedStyle(document.getElementById("price-bar")).display,
+        barText: document.getElementById("price-bar").textContent,
       };
     })()`);
     assert.ok(metrics.width >= 360 && metrics.width <= 375, JSON.stringify(metrics));
@@ -200,6 +203,9 @@ test("375px shows the title and first inputs, and the browser matches examples A
     assert.ok(metrics.pack.bottom <= metrics.height, JSON.stringify(metrics));
     assert.ok(metrics.usage.bottom <= metrics.height, JSON.stringify(metrics));
     assert.ok(metrics.scrollWidth <= metrics.clientWidth + 1, JSON.stringify(metrics));
+    assert.equal(metrics.barDisplay, "flex", JSON.stringify(metrics));
+    assert.match(metrics.barText, /—/);
+    assert.equal(metrics.barText.includes("$"), false);
 
     const shotDir = "/tmp/3dprint-shots";
     await mkdir(shotDir, { recursive: true });
@@ -237,10 +243,13 @@ test("375px shows the title and first inputs, and the browser matches examples A
           hours: document.getElementById("time-hours").value,
           minutes: document.getElementById("time-minutes").value,
           priceLabel: document.getElementById("label-price").textContent,
-          how: document.getElementById("how-material").textContent,
+          how: document.getElementById("how-material")?.textContent || "",
+          usageLabel: document.getElementById("label-usage").textContent,
           scrollWidth: document.documentElement.scrollWidth,
           clientWidth: document.documentElement.clientWidth,
           h1: document.querySelector("h1").textContent,
+          bar: document.getElementById("price-bar").textContent,
+          barDisplay: getComputedStyle(document.getElementById("price-bar")).display,
         };
       })()`);
       target.ws.close();
@@ -275,6 +284,9 @@ test("375px shows the title and first inputs, and the browser matches examples A
     assert.match(a.body, /87\.4 g ÷ 1000 g/);
     assert.equal(a.hours, "5");
     assert.equal(a.minutes, "23");
+    assert.equal(a.barDisplay, "flex");
+    assert.match(a.bar, /\$10\.67/);
+    assert.match(a.bar, /\$7\.11/);
     assert.ok(a.scrollWidth <= a.clientWidth + 1, JSON.stringify(a));
 
     const colon = await runCase("/", { ...exampleA, values: { ...exampleA.values, "time-text": "5:23" } });
@@ -377,7 +389,7 @@ test("375px shows the title and first inputs, and the browser matches examples A
     });
     assert.equal(d.h1, "3D Printing Cost Calculator");
     assert.equal(d.priceLabel, "Bottle price");
-    assert.match(d.how, /Bottle price, Bottle volume, and Print volume/);
+    assert.equal(d.usageLabel, "Print volume");
     assert.match(d.body, /\$2\.31/);
 
     const e = await runCase("/", {
@@ -499,10 +511,12 @@ test("375px shows the title and first inputs, and the browser matches examples A
     const wideMetrics = await evaluate(wide.client, `({
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
-      width: window.innerWidth
+      width: window.innerWidth,
+      barDisplay: getComputedStyle(document.getElementById("price-bar")).display
     })`);
     assert.ok(wideMetrics.width >= 1200, JSON.stringify(wideMetrics));
     assert.ok(wideMetrics.scrollWidth <= wideMetrics.clientWidth + 1, JSON.stringify(wideMetrics));
+    assert.equal(wideMetrics.barDisplay, "none");
 
     await page.client.send("Runtime.evaluate", {
       expression: "document.getElementById('results').scrollIntoView()",
@@ -567,6 +581,66 @@ test("init syncs Print time typed before the script loads", { timeout: 60000 }, 
       });
     })()`);
     assert.deepEqual(synced, { hours: "5", minutes: "23", timeText: "5h 23m" });
+    await goto(page.client, `http://127.0.0.1:${port}/`);
+    const cleared = await evaluate(page.client, `(() => {
+      const fire = (el) => {
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      };
+      const time = document.getElementById("time-text");
+      time.value = "5h 23m";
+      fire(time);
+      const before = {
+        hours: document.getElementById("time-hours").value,
+        minutes: document.getElementById("time-minutes").value,
+      };
+      time.value = "abc";
+      fire(time);
+      return {
+        before,
+        hours: document.getElementById("time-hours").value,
+        minutes: document.getElementById("time-minutes").value,
+        body: document.getElementById("result-body").textContent,
+      };
+    })()`);
+    assert.deepEqual(cleared.before, { hours: "5", minutes: "23" });
+    assert.equal(cleared.hours, "");
+    assert.equal(cleared.minutes, "");
+    assert.match(cleared.body, /time like 5h 23m/i);
+    await goto(page.client, `http://127.0.0.1:${port}/3d-printing-cost-calculator/`);
+    const loaded = await evaluate(page.client, `(() => {
+      document.querySelector('[data-example="A"]').click();
+      return new Promise((resolve) => {
+        const start = Date.now();
+        const tick = () => {
+          const body = document.getElementById("result-body").textContent;
+          if (body.includes("$10.67") || Date.now() - start > 3000) {
+            resolve({
+              hours: document.getElementById("time-hours").value,
+              minutes: document.getElementById("time-minutes").value,
+              body,
+            });
+          } else {
+            setTimeout(tick, 20);
+          }
+        };
+        tick();
+      });
+    })()`);
+    assert.equal(loaded.hours, "5");
+    assert.equal(loaded.minutes, "23");
+    assert.match(loaded.body, /\$10\.67/);
+    const switched = await evaluate(page.client, `(() => {
+      const price = document.getElementById("material-price");
+      price.value = "NT$590";
+      price.dispatchEvent(new Event("input", { bubbles: true }));
+      return {
+        currency: document.getElementById("currency").value,
+        note: document.getElementById("currency-note").textContent,
+      };
+    })()`);
+    assert.equal(switched.currency, "TWD");
+    assert.match(switched.note, /Currency switched to TWD because you typed NT\$/);
     page.ws.close();
   } finally {
     try { chrome.kill("SIGKILL"); } catch { /* already exited */ }

@@ -1,6 +1,6 @@
 # 3D Print Cost Calculator
 
-A static two-page calculator. The math runs in the browser. Nothing you type is uploaded.
+A static two-page calculator. The math runs in the browser. The numbers you type are not uploaded. Page visits can be counted with Cloudflare Web Analytics when `CF_BEACON_TOKEN` is set at build time.
 
 `npm test` checks the worked examples, parsing, error text, page copy, and a 375px layout pass.
 
@@ -10,25 +10,27 @@ A static two-page calculator. The math runs in the browser. Nothing you type is 
 
 ```sh
 npm install
-SITE_URL=https://example.com npm run build
+SITE_URL=https://example.com CF_BEACON_TOKEN= npm run build
 ```
 
-If `SITE_URL` is omitted, the build uses `http://127.0.0.1:8787` and prints a warning.
+`CF_BEACON_TOKEN` is optional. Leave it empty and the pages include no analytics script. If `SITE_URL` is omitted, the build uses `http://127.0.0.1:8787` and prints a warning.
 
 ## Deploy
 
-Wrangler runs `node scripts/build.js` before `deploy` and `preview`, so `SITE_URL` still has to be set in that command’s environment. The worker name is `3d-print-cost-calculator`.
+Wrangler runs `node scripts/build.js` before deploy, so `SITE_URL` and `CF_BEACON_TOKEN` have to be set in that command’s environment. Do not commit the token.
 
-Preview on `*.workers.dev` (`previews.vars.NOINDEX=true`). Responses include `X-Robots-Tag: noindex`, and `/robots.txt` is `Disallow: /`.
+Preview worker `3d-print-cost-calculator-preview` (`NOINDEX=true` in the `preview` environment). Responses include `X-Robots-Tag: noindex`, and `/robots.txt` is `Disallow: /`.
 
 ```sh
-SITE_URL=https://YOUR-PREVIEW-ORIGIN npx wrangler preview
+SITE_URL=https://3d-print-cost-calculator-preview.YOUR-SUBDOMAIN.workers.dev CF_BEACON_TOKEN=your-token npx wrangler deploy --env preview
 ```
 
-Production is indexable (`vars.NOINDEX=false`). Use this when the custom domain is ready. A production deploy is indexable even on its `workers.dev` hostname, so use `wrangler preview` until you want that.
+`npx wrangler preview` is the branch preview on the main worker. It also sets `NOINDEX=true`.
+
+Production worker `3d-print-cost-calculator` is indexable (`NOINDEX=false`).
 
 ```sh
-SITE_URL=https://example.com npx wrangler deploy
+SITE_URL=https://example.com CF_BEACON_TOKEN=your-token npx wrangler deploy
 ```
 
 Local preview of the worker and assets:

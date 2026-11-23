@@ -52,6 +52,7 @@
               <option value="kg" selected>kg</option>
             </select>
           </div>
+          <p class="hint" id="package-note"></p>
         </div>
 
         <div class="field">
@@ -63,12 +64,14 @@
               <option value="kg">kg</option>
             </select>
           </div>
+          <p class="hint" id="usage-note"></p>
           <p class="hint" id="hint-slicer">{{SLICER_HINT}}</p>
         </div>
 
         <div class="field">
           <label for="waste-amount">Extra waste</label>
           <input id="waste-amount" inputmode="decimal" autocomplete="off" spellcheck="false">
+          <p class="hint" id="waste-note"></p>
           <p class="hint">Supports, a purge tower, or a failed first layer. Leave blank for 0. The unit matches the print amount.</p>
         </div>
 
@@ -177,6 +180,7 @@
 
       <div class="results" id="results" aria-live="polite">
         <p id="privacy">{{PRIVACY}}</p>
+        <p id="currency-note" class="notice" hidden></p>
         <div id="result-body"></div>
         <p id="disclaimer">{{DISCLAIMER}}</p>
         <div class="actions">
@@ -186,6 +190,7 @@
       </div>
     </section>
 
+    <!--HOME_AFTER-->
     <section class="how" aria-labelledby="how-title">
       <h2 id="how-title">How to use</h2>
       <ol class="steps">
@@ -224,14 +229,14 @@
     <section class="faq" aria-labelledby="faq-title">
       <h2 id="faq-title">FAQ</h2>
       <h3>What do I type for print time?</h3>
-      <p>Paste 5h 23m, 5:23, or 323 min. Hours and Minutes stay in step with Print time.</p>
+      <p>Paste 5h 23m, 5:23, 23m 12s, 1d 2h, or 05:23:00. Hours and Minutes stay in step with Print time. Seconds round to the nearest minute.</p>
       <h3>What is markup, and what is margin?</h3>
       <p>{{MARKUP_NOTE}}</p>
       <p>{{MARGIN_NOTE}} Markup and margin are different methods, and they give different prices.</p>
       <h3>Does this add tax?</h3>
       <p>There is no sales tax, VAT, or income tax field. Add any tax yourself, outside this estimate.</p>
       <h3>Are my numbers sent anywhere?</h3>
-      <p>{{PRIVACY}}</p>
+      <p>{{FAQ_NUMBERS}}</p>
       <h3>What is a slicer?</h3>
       <p>{{SLICER_HINT}}</p>
       <h3>What is a kWh?</h3>
@@ -242,9 +247,17 @@
       <p>{{DISCLAIMER}}</p>
     </section>
 
-    <p class="also">Same calculator: <a href="{{OTHER_HREF}}">{{OTHER_NAME}}</a></p>
+    <p class="also"><a href="{{OTHER_HREF}}">{{EXAMPLES_LINK}}</a></p>
+    <!--/HOME_AFTER-->
+    <!--SYNONYM_AFTER-->
+    <!--/SYNONYM_AFTER-->
     <p class="feedback"><a href="mailto:{{EMAIL}}">Send feedback</a></p>
   </main>
+  <button type="button" id="price-bar" class="price-bar">
+    <span>Total cost <strong id="bar-cost">—</strong></span>
+    <span>Suggested price <strong id="bar-price">—</strong></span>
+  </button>
   <script type="module" src="/app.js"></script>
+  <!--BEACON-->
 </body>
 </html>

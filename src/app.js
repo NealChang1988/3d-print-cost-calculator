@@ -1,5 +1,6 @@
-import { CURRENCIES, calculate, formatMoney, parseTime, plainText } from "./calc.js";
+import { CURRENCIES, calculate, currencyChoice, formatMoney, parseTime, plainText, quantityNote } from "./calc.js";
 import { EMPTY_RESULT, howMaterial, materialLabels, slicerHint } from "./copy.js";
+import { WORKED } from "./examples.js";
 
 const $ = (id) => document.getElementById(id);
 const STORE = {
@@ -49,7 +50,8 @@ function applyMode(next) {
   $("label-price").textContent = labels.price;
   $("label-pack").textContent = labels.pack;
   $("label-usage").textContent = labels.usage;
-  $("how-material").textContent = howMaterial(next);
+  const how = $("how-material");
+  if (how) how.textContent = howMaterial(next);
   $("hint-slicer").textContent = slicerHint(next);
   const units = next === "resin" ? ["ml", "L"] : ["g", "kg"];
   setUnits($("package-unit"), units, next === "resin" ? "ml" : "kg");
@@ -166,27 +168,77 @@ function render(result) {
   body.append(sentence, perUnit, perHour);
 }
 
+function refreshQtyNotes() {
+  const kind = $("mode-resin").checked ? "volume" : "weight";
+  const fields = [
+    ["package-amount", "package-note", "package-unit", $("label-pack").textContent],
+    ["usage-amount", "usage-note", "usage-unit", $("label-usage").textContent],
+    ["waste-amount", "waste-note", "usage-unit", "Extra waste"],
+  ];
+  for (const [inputId, noteId, unitId, label] of fields) {
+    const note = $(noteId);
+    const raw = $(inputId).value;
+    if (!raw.trim()) {
+      note.textContent = "";
+      note.classList.remove("field-error");
+      continue;
+    }
+    const parsed = quantityNote(raw, kind, $(unitId).value);
+    if (parsed.error) {
+      note.textContent = `${label}: ${parsed.error}`;
+      note.classList.add("field-error");
+    } else {
+      note.textContent = parsed.note;
+      note.classList.remove("field-error");
+    }
+  }
+}
+
+function syncCurrency() {
+  const decision = currencyChoice($("currency").value, [
+    $("material-price").value,
+    $("electricity").value,
+    $("hourly-rate").value,
+    $("machine-price").value,
+    $("other-costs").value,
+  ]);
+  if (decision.currency !== $("currency").value) $("currency").value = decision.currency;
+  const note = $("currency-note");
+  note.textContent = decision.note;
+  note.hidden = !decision.note;
+}
+
+function updateBar(result) {
+  if (!result || !result.ok) {
+    $("bar-cost").textContent = "—";
+    $("bar-price").textContent = "—";
+    return;
+  }
+  $("bar-cost").textContent = formatMoney(result.successCents, result.currency);
+  $("bar-price").textContent = formatMoney(result.priceCents, result.currency);
+}
+
 function recalc() {
-  render(calculate(readInput()));
+  syncCurrency();
+  refreshQtyNotes();
+  const result = calculate(readInput());
+  render(result);
+  updateBar(result);
 }
 
 function onTimeText() {
   if (syncing) return;
-  const raw = $("time-text").value;
-  if (raw.trim() === "") {
-    syncing = true;
+  const parsed = parseTime($("time-text").value);
+  syncing = true;
+  if (!parsed.ok) {
     $("time-hours").value = "";
     $("time-minutes").value = "";
-    syncing = false;
-    return;
+  } else {
+    $("time-hours").value = String(parsed.wholeHours);
+    $("time-minutes").value = Number.isInteger(parsed.minutePart)
+      ? String(parsed.minutePart)
+      : String(Math.round(parsed.minutePart * 100) / 100);
   }
-  const parsed = parseTime(raw);
-  if (!parsed.ok) return;
-  syncing = true;
-  $("time-hours").value = String(parsed.wholeHours);
-  $("time-minutes").value = Number.isInteger(parsed.minutePart)
-    ? String(parsed.minutePart)
-    : String(Math.round(parsed.minutePart * 100) / 100);
   syncing = false;
 }
 
@@ -228,6 +280,28 @@ function onEdit(event) {
   }
   savePrefs();
   recalc();
+}
+
+function loadExample(id) {
+  const example = WORKED.find((item) => item.id === id);
+  if (!example) return;
+  const { mode, method, depreciation, values } = example.input;
+  $("mode-filament").checked = mode !== "resin";
+  $("mode-resin").checked = mode === "resin";
+  onModeChange();
+  $("method-markup").checked = method !== "margin";
+  $("method-margin").checked = method === "margin";
+  $("label-percent").textContent = method === "margin" ? "Margin percent" : "Markup percent";
+  $("depreciation-on").checked = depreciation;
+  $("wear-fields").hidden = !depreciation;
+  for (const [key, value] of Object.entries(values)) {
+    const el = $(key);
+    if (!el) continue;
+    el.value = value;
+  }
+  onTimeText();
+  recalc();
+  $("results").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 async function withBusy(button, busyLabel, fn) {
@@ -313,6 +387,32 @@ $("reset").addEventListener("click", () => {
     clearJob();
   });
 });
+
+for (const button of document.querySelectorAll(".load-example")) {
+  button.addEventListener("click", () => {
+    withBusy(button, "Loading…", async () => {
+      loadExample(button.dataset.example);
+    });
+  });
+}
+
+$("price-bar").addEventListener("click", () => {
+  $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+document.addEventListener("focusin", (event) => {
+  if (event.target.matches("input, select, textarea")) document.body.classList.add("is-typing");
+});
+document.addEventListener("focusout", () => {
+  document.body.classList.remove("is-typing");
+});
+
+if ("IntersectionObserver" in window) {
+  const observer = new IntersectionObserver((entries) => {
+    $("price-bar").classList.toggle("is-covered", entries.some((entry) => entry.isIntersecting));
+  }, { threshold: 0.2 });
+  observer.observe($("results"));
+}
 
 const restoredPower = load(STORE.power);
 const restoredElectricity = load(STORE.electricity);

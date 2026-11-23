@@ -4,10 +4,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   CURRENCY_HINT,
   DISCLAIMER,
-  FAILURE_HINT,
-  FEEDBACK_EMAIL,
-  HOME_DESCRIPTION,
-  HOW_KEEP,
+    FAILURE_HINT,
+    FAQ_NUMBERS,
+    FEEDBACK_EMAIL,
+    HOME_DESCRIPTION,
+    HOME_EXAMPLES_LINK,
+    HOW_KEEP,
   HOW_TIME,
   KWH_HINT,
   LEDE,
@@ -18,12 +20,15 @@ import {
   SLICER_HINT,
   SYNONYM_DESCRIPTION,
   TIME_HINT,
+  SYNONYM_INTRO,
+  SYNONYM_LEDE,
   TOOL_HOME,
   TOOL_SYNONYM,
   WATT_HINT,
   WEAR_HINT,
   howMaterial,
 } from "../src/copy.js";
+import { WORKED } from "../src/examples.js";
 import { faviconPng, ogPng } from "./png.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -62,12 +67,57 @@ function fill(template, map) {
   });
 }
 
-export async function buildSite({ outDir = path.join(root, "dist"), siteUrl } = {}) {
+export function beaconTag(token) {
+  const value = String(token || "").trim();
+  if (!value) return "";
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new Error("CF_BEACON_TOKEN has unexpected characters");
+  return `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"${value}"}'></script>\n`;
+}
+
+function workedSection() {
+  const articles = WORKED.map((example) => `    <article class="worked-item" id="example-${example.id}">
+      <h3>${esc(example.heading)}</h3>
+      ${example.steps.map((step) => `<p>${esc(step)}</p>`).join("\n      ")}
+      <p><strong>${esc(example.priceLabel)}</strong></p>
+      <button type="button" class="load-example" data-example="${example.id}">Load example ${example.id}</button>
+    </article>`).join("\n");
+  return `<section class="worked" id="worked-examples" aria-labelledby="worked-title">
+    <h2 id="worked-title">Worked examples</h2>
+    <p>${esc(SYNONYM_INTRO)}</p>
+    ${articles}
+  </section>
+  <section class="faq" aria-labelledby="syn-faq-title">
+    <h2 id="syn-faq-title">FAQ</h2>
+    <h3>Why are these prices so exact?</h3>
+    <p>They are practice numbers so you can check every line. They are not a quote and not a shop price.</p>
+    <h3>Does resin use different math?</h3>
+    <p>No. Example D only swaps grams for millilitres. Material, electricity, markup, and the suggested price use the same steps, and that example ends at $2.31.</p>
+    <h3>Are my numbers sent anywhere?</h3>
+    <p>${esc(FAQ_NUMBERS)}</p>
+  </section>
+  <p class="also"><a href="/">Open ${esc(TOOL_HOME)} without these examples.</a></p>`;
+}
+
+function chooseTail(html, kind) {
+  if (kind === "home") {
+    return html
+      .replace(/<!--SYNONYM_AFTER-->[\s\S]*?<!--\/SYNONYM_AFTER-->/, "")
+      .replaceAll("<!--HOME_AFTER-->", "")
+      .replaceAll("<!--/HOME_AFTER-->", "");
+  }
+  return html
+    .replace(/<!--HOME_AFTER-->[\s\S]*?<!--\/HOME_AFTER-->/, workedSection())
+    .replaceAll("<!--SYNONYM_AFTER-->", "")
+    .replaceAll("<!--/SYNONYM_AFTER-->", "");
+}
+
+export async function buildSite({ outDir = path.join(root, "dist"), siteUrl, beaconToken } = {}) {
   const explicit = siteUrl || process.env.SITE_URL;
   if (!explicit) {
     console.warn("SITE_URL is not set. Using http://127.0.0.1:8787 for canonical, sitemap, and og:image URLs.");
   }
   const origin = normalizeSiteUrl(explicit);
+  const beacon = beaconTag(beaconToken ?? process.env.CF_BEACON_TOKEN ?? "");
   await mkdir(outDir, { recursive: true });
   await mkdir(path.join(outDir, "3d-printing-cost-calculator"), { recursive: true });
 
@@ -90,13 +140,17 @@ export async function buildSite({ outDir = path.join(root, "dist"), siteUrl } = 
     PRICE_HINT,
     CURRENCY_HINT,
     EMAIL: FEEDBACK_EMAIL,
+    FAQ_NUMBERS,
+    EXAMPLES_LINK: HOME_EXAMPLES_LINK,
     OG_IMAGE: `${origin}/og.png`,
   };
   const pages = [
     {
       file: "index.html",
+      kind: "home",
       title: TOOL_HOME,
       description: HOME_DESCRIPTION,
+      lede: LEDE,
       self: "/",
       canonical: `${origin}/`,
       otherHref: "/3d-printing-cost-calculator/",
@@ -104,8 +158,10 @@ export async function buildSite({ outDir = path.join(root, "dist"), siteUrl } = 
     },
     {
       file: "3d-printing-cost-calculator/index.html",
+      kind: "synonym",
       title: TOOL_SYNONYM,
       description: SYNONYM_DESCRIPTION,
+      lede: SYNONYM_LEDE,
       self: "/3d-printing-cost-calculator/",
       canonical: `${origin}/3d-printing-cost-calculator/`,
       otherHref: "/",
@@ -113,15 +169,17 @@ export async function buildSite({ outDir = path.join(root, "dist"), siteUrl } = 
     },
   ];
   for (const page of pages) {
-    const html = fill(template, {
+    let html = fill(template, {
       ...shared,
       TITLE: page.title,
       DESCRIPTION: page.description,
+      LEDE: page.lede,
       CANONICAL: page.canonical,
       SELF: page.self,
       OTHER_HREF: page.otherHref,
       OTHER_NAME: page.otherName,
     });
+    html = chooseTail(html, page.kind).replace("<!--BEACON-->", beacon);
     if (html.includes("{{")) throw new Error(`Unresolved placeholder in ${page.file}`);
     await writeFile(path.join(outDir, page.file), html);
   }
@@ -129,6 +187,7 @@ export async function buildSite({ outDir = path.join(root, "dist"), siteUrl } = 
   await cp(path.join(root, "src", "app.js"), path.join(outDir, "app.js"));
   await cp(path.join(root, "src", "calc.js"), path.join(outDir, "calc.js"));
   await cp(path.join(root, "src", "copy.js"), path.join(outDir, "copy.js"));
+  await cp(path.join(root, "src", "examples.js"), path.join(outDir, "examples.js"));
   await cp(path.join(root, "src", "styles.css"), path.join(outDir, "styles.css"));
   await writeFile(path.join(outDir, "og.png"), ogPng());
   await writeFile(path.join(outDir, "favicon-32.png"), faviconPng());
@@ -156,6 +215,7 @@ export async function buildSite({ outDir = path.join(root, "dist"), siteUrl } = 
   <meta name="robots" content="noindex">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
+  ${beacon}
 </head>
 <body>
   <main>
